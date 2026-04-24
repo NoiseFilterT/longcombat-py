@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "longcombat-py"
+version = "0.0.0"
+description = "Python port of longCombat (Beer et al. 2020): longitudinal ComBat harmonization in a linear mixed-effects model framework."
+readme = "README.md"
+license = "Artistic-2.0"
+license-files = ["LICENSE", "NOTICE"]
+requires-python = ">=3.10"
+authors = [
+    { name = "Tyler Ard", email = "tylerard@ini.usc.edu" },
+]
+keywords = ["combat", "harmonization", "neuroimaging", "longitudinal", "mixed-effects"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "pandas>=2.0",
+    "statsmodels>=0.14",
+]
+
+[project.optional-dependencies]
+plot = ["matplotlib>=3.7"]
+dev = ["pytest>=7", "matplotlib>=3.7"]
+
+[project.urls]
+Homepage = "https://github.com/NoiseFilterT/longcombat-py"
+Repository = "https://github.com/NoiseFilterT/longcombat-py"
+Issues = "https://github.com/NoiseFilterT/longcombat-py/issues"
+"Upstream R package" = "https://github.com/jcbeer/longCombat"
+"Paper (Beer et al. 2020, NeuroImage)" = "https://doi.org/10.1016/j.neuroimage.2020.117129"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+longcombat = ["py.typed"]
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version_provider = "pep621"
+version_files = ["src/longcombat/__init__.py:__version__"]
+tag_format = "v$version"
+update_changelog_on_bump = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning:statsmodels",
+    "ignore::FutureWarning:statsmodels",
+]

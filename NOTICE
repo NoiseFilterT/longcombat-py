@@ -1,0 +1,28 @@
+longcombat-py
+=============
+
+This package is a Python port of the R package `longCombat` by Joanne Beer
+et al.:
+
+    Beer JC, Tustison NJ, Cook PA, Davatzikos C, Sheline YI,
+    Shinohara RT, Linn KA (2020). Longitudinal ComBat: A method for
+    harmonizing longitudinal multi-scanner imaging data. NeuroImage,
+    220:117129. https://doi.org/10.1016/j.neuroimage.2020.117129
+
+Upstream source: https://github.com/jcbeer/longCombat
+
+License
+-------
+
+The upstream `longCombat` package ships with `LICENSE.txt` containing the
+Artistic License 2.0 text. The `DESCRIPTION` file in the upstream repository
+lists "License: MIT", creating an ambiguity. This Python port follows the
+Artistic License 2.0 text that was actually distributed in `LICENSE.txt`.
+
+Attribution
+-----------
+
+The mathematical method is due to the authors of the paper cited above.
+This port adapts the R implementation in `longCombat/R/longCombat.R` (and
+related files) to Python; any errors introduced during the port are the
+responsibility of this project, not the upstream authors.
