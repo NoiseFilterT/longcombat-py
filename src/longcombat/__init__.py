@@ -15,7 +15,7 @@ __all__ = [
     "mult_test",
 ]
 
-__version__ = "0.0.0"
+__version__ = "0.1.0"
 
 
 def __getattr__(name: str):

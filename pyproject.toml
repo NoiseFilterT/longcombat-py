@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "longcombat-py"
-version = "0.0.0"
+version = "0.1.0"
 description = "Python port of longCombat (Beer et al. 2020): longitudinal ComBat harmonization in a linear mixed-effects model framework."
 readme = "README.md"
 license = "Artistic-2.0"
