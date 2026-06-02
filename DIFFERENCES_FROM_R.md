@@ -39,6 +39,26 @@ stays at 10⁻⁵. This is a much tighter floor than `statsmodels` vs
 be looser if the random-effects structure is near the variance-component
 boundary.
 
+**Random-slope models specifically.** Independent head-to-head testing
+(fresh data generated in R, run through both packages on identical rows)
+shows the agreement depends strongly on the random-effects structure:
+
+| Random-effects structure | Typical max abs error on `data_combat` vs R |
+|---|---|
+| Random intercept `(1\|id)` (REML or MSR) | ~1e-6 – 1e-5 |
+| Random slope `(1 + time\|id)`, weak/near-boundary slope variance | up to ~1e-1 (a few %) |
+
+For random-slope models with a small or weakly identified slope variance,
+the REML surface is nearly flat along that direction, and `lme4` (BOBYQA
+on the Cholesky factor) and `statsmodels` (lbfgs/bfgs/powell) settle on
+different-but-near-equally-likely covariance estimates that propagate into
+the harmonized output. As of this version `long_combat` emits a
+`UserWarning` when a per-feature fit fails to converge — the clearest
+signal of this regime. Prefer the simplest random-effects structure your
+design justifies (a random intercept is the canonical longitudinal-ComBat
+setup); if you use random slopes and need R-level agreement, validate
+against R.
+
 ## 2. `add_test`: likelihood-ratio test, not Kenward–Roger
 
 **What changed.** R's `addTest` uses `pbkrtest::KRmodcomp`, which reports an
@@ -97,9 +117,16 @@ is visually comparable but pixel-level identity is not a goal.
 
 ## 6. Missing data
 
-Both versions error on missing data in the columns used by the model. The
-Python port matches this behavior and uses a `ValueError` rather than
-R's `stop()`.
+Both versions error on missing data **in the columns used by the model**,
+with a `ValueError` rather than R's `stop()`. The *scope* of the check
+differs, though: R's `longCombat` errors if **any** column of `data`
+contains `NA` (`sum(is.na(data)) > 0`), even a column the model never uses.
+The Python port only checks the columns it actually uses (`batch_col`,
+`id_col`, `time_col`, and the features for `long_combat`; `batch_col`,
+`id_col`, the grouping factor, and the features for `add_test`/`mult_test`).
+So a frame with `NaN` in an unused column runs in Python but errors in R.
+Covariates referenced only in `formula` are not pre-validated; a `NaN`
+there surfaces as an error from the model fit.
 
 ## 7. Single-feature harmonization
 
@@ -113,9 +140,24 @@ points users to ``eb=False``, which harmonizes each feature using its own
 method-of-moments estimates without the cross-feature EB shrinkage and
 therefore works fine for V=1.
 
+Note that ``mean_only=True`` *also* requires V≥2: its additive shrinkage
+uses the same cross-feature hyperprior τ̄², so single-feature ``mean_only``
+is rejected with the same ``ValueError`` (the ``eb=False`` escape hatch
+applies only when ``mean_only=False``).
+
 ## 8. Factor levels
 
 R's `as.factor` orders levels alphabetically (or by locale). The Python
 port sorts batch levels using `pandas`' stable sort — for plain strings and
 numbers this matches R's alphabetical ordering, which places the same batch
 as the "reference level" dropped by the design matrix.
+
+## 9. Integer feature indices are 0-based
+
+When `features` is given as integer column indices, the Python port uses
+**0-based** indexing (`data.columns[i]`), following Python convention. The R
+package uses **1-based** indexing (`names(data)[features]`). So the R call
+`features = 6:8` selects the same columns as `features=[5, 6, 7]` in this
+port — *not* `features=[6, 7, 8]`. Passing column **names** avoids the
+ambiguity entirely and is recommended when porting R code. This applies to
+`long_combat`, `add_test`, and `mult_test`.

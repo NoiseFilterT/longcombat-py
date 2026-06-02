@@ -48,3 +48,9 @@ class TestParseRanef:
     def test_rejects_non_string(self):
         with pytest.raises(TypeError):
             parse_ranef(123)  # type: ignore[arg-type]
+
+    def test_rejects_uncorrelated_double_pipe(self):
+        # lme4's '||' (uncorrelated) gets a specific message, not the generic
+        # "multiple random-effects blocks" one.
+        with pytest.raises(ValueError, match="uncorrelated random effects"):
+            parse_ranef("(1 + time || subid)")

@@ -130,6 +130,14 @@ class TestMeanOnly:
             result.delta2starhat.values, np.ones_like(result.delta2starhat.values)
         )
 
+    def test_single_feature_mean_only_raises(self, synthetic_data):
+        # mean_only also needs the cross-feature hyperprior tau2bar; a single
+        # feature must raise, not silently emit all-NaN output.
+        with pytest.raises(ValueError, match="requires at least 2 features"):
+            long_combat(
+                synthetic_data, features=["feat1"], mean_only=True, **BASE_KWARGS
+            )
+
     def test_gammastarhat_has_shrinkage(self, synthetic_data):
         """Closed-form γ* when δ²=1: (n τ² γ̂ + γ̄)/(n τ² + 1)."""
         features = ["feat1", "feat2", "feat3"]
@@ -210,6 +218,37 @@ class TestEdgeCases:
     def test_missing_feature_column_raises(self, synthetic_data):
         with pytest.raises(KeyError, match="feature column"):
             long_combat(synthetic_data, features=["does_not_exist"], **BASE_KWARGS)
+
+    def test_batch_col_with_dot_in_name(self, synthetic_data):
+        # Column names with dots/spaces are legal in R and common in
+        # neuroimaging tables; they must not break the Patsy formula.
+        df = synthetic_data.rename(columns={"batch": "scanner.site"})
+        kwargs = {**BASE_KWARGS, "batch_col": "scanner.site"}
+        result = long_combat(df, features=["feat1", "feat2"], **kwargs)
+        assert not result.data_combat.iloc[:, 3:].isna().any().any()
+        assert list(result.gammahat.index) == ["A", "B", "C"]
+
+    def test_features_accepts_numpy_array_and_index(self, synthetic_data):
+        # The signature is typed Sequence; ndarray / Index / range should work,
+        # not just list / tuple.
+        r1 = long_combat(
+            synthetic_data, features=np.array(["feat1", "feat2"]), **BASE_KWARGS
+        )
+        r2 = long_combat(
+            synthetic_data, features=synthetic_data.columns[5:7], **BASE_KWARGS
+        )
+        assert list(r1.gammahat.columns) == ["feat1", "feat2"]
+        assert list(r2.gammahat.columns) == ["feat1", "feat2"]
+
+    def test_no_spurious_convergence_warning(self, synthetic_data):
+        # A well-behaved random-intercept fit must not emit the new
+        # non-convergence warning.
+        import warnings
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            long_combat(synthetic_data, features=["feat1", "feat2"], **BASE_KWARGS)
+        assert not any("did not converge" in str(x.message) for x in w)
 
     def test_random_slope_ranef(self, synthetic_data):
         # Should fit without error.

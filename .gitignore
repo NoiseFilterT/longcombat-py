@@ -8,6 +8,10 @@ venv/
 # Local R library used to regenerate R-equivalence fixtures (~200 MB)
 tests/fixtures/r_lib/
 
+# Regenerable R-vs-Python verification output (keep the harness scripts, not
+# their generated CSV/JSON/txt artifacts — rerun verify/gen_and_run_r.R)
+verify/out/
+
 # PyPI build outputs (regenerated on `python -m build`)
 dist/
 *.egg-info/

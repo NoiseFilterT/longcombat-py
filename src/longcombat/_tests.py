@@ -17,6 +17,7 @@ import pandas as pd
 import statsmodels.formula.api as smf
 from scipy import stats as scipy_stats
 
+from ._core import _validate_no_missing_data
 from ._ranef import parse_ranef
 
 
@@ -42,6 +43,8 @@ def add_test(
     data : pandas.DataFrame
     batch_col, id_col : str
     features : sequence of str or int
+        Integer indices are 0-based (Python), unlike R's 1-based; see
+        ``DIFFERENCES_FROM_R.md`` §9.
     formula : str
         Fixed-effects right-hand side (Patsy), must **not** include
         ``batch_col`` or random effects.
@@ -96,12 +99,15 @@ def add_test(
         print(f"[add_test] found {len(feature_names)} features")
 
     ranef_spec = parse_ranef(ranef)
+    _validate_no_missing_data(
+        work, [batch_col, id_col, ranef_spec.groups_col, *feature_names]
+    )
 
     rows = []
     for v, feat in enumerate(feature_names, start=1):
         if verbose:
             print(f"[add_test] testing for additive batch effect for feature {v} ({feat})")
-        full_rhs = f"{formula} + C({batch_col}, Treatment)"
+        full_rhs = f"{formula} + C(Q('{batch_col}'), Treatment)"
         reduced_rhs = formula
         full_fit = _fit_lme(work, feat, full_rhs, ranef_spec)
         reduced_fit = _fit_lme(work, feat, reduced_rhs, ranef_spec)
@@ -119,7 +125,9 @@ def add_test(
         )
 
     out = pd.DataFrame(rows)
-    return out.sort_values("chi2", ascending=False).reset_index(drop=True)
+    return out.sort_values(
+        "chi2", ascending=False, kind="stable"
+    ).reset_index(drop=True)
 
 
 def mult_test(
@@ -162,6 +170,9 @@ def mult_test(
         print(f"[mult_test] found {len(feature_names)} features")
 
     ranef_spec = parse_ranef(ranef)
+    _validate_no_missing_data(
+        work, [batch_col, ranef_spec.groups_col, *feature_names]
+    )
 
     batch_codes = np.asarray(work[batch_col].cat.codes)
     groups = [np.where(batch_codes == i)[0] for i in range(n_batch)]
@@ -172,7 +183,7 @@ def mult_test(
             print(
                 f"[mult_test] testing for multiplicative batch effect for feature {v} ({feat})"
             )
-        rhs = f"{formula} + C({batch_col}, Treatment)"
+        rhs = f"{formula} + C(Q('{batch_col}'), Treatment)"
         fit = _fit_lme(work, feat, rhs, ranef_spec)
         resid = np.asarray(fit.resid, dtype=float)
         chi2, p = scipy_stats.fligner(*(resid[g] for g in groups))
@@ -186,7 +197,9 @@ def mult_test(
         )
 
     out = pd.DataFrame(rows)
-    return out.sort_values("chi2", ascending=False).reset_index(drop=True)
+    return out.sort_values(
+        "chi2", ascending=False, kind="stable"
+    ).reset_index(drop=True)
 
 
 # ---------------------------------------------------------------------------
@@ -195,8 +208,11 @@ def mult_test(
 def _resolve_feature_names(
     data: pd.DataFrame, features: Sequence[str] | Sequence[int]
 ) -> list[str]:
-    if not isinstance(features, (list, tuple)) or len(features) == 0:
-        raise ValueError("features must be a non-empty list of column names or indices")
+    if isinstance(features, (str, bytes)) or not hasattr(features, "__len__"):
+        raise ValueError("features must be a non-empty sequence of column names or indices")
+    features = list(features)
+    if len(features) == 0:
+        raise ValueError("features must be a non-empty sequence of column names or indices")
     first = features[0]
     if isinstance(first, (int, np.integer)) and not isinstance(first, bool):
         names = [str(data.columns[int(i)]) for i in features]

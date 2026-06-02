@@ -1,6 +1,7 @@
 """Tests for add_test and mult_test."""
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -73,3 +74,26 @@ class TestMultTest:
         clean = mult_test(clean_data, features=["feat1"], **COMMON)
         # Dirty data has batch_mult = {A:1, B:0.5, C:1.5} — strong multiplicative effect
         assert dirty.loc[0, "p_value"] < clean.loc[0, "p_value"]
+
+
+class TestMissingDataValidation:
+    """NaN in a feature column must raise a clear ValueError, not an opaque
+    IndexError from statsmodels' row-dropping (matches long_combat)."""
+
+    def test_add_test_missing_data_raises(self, synthetic_data):
+        df = synthetic_data.copy()
+        df.loc[df.index[0], "feat1"] = np.nan
+        with pytest.raises(ValueError, match="Missing data in variables"):
+            add_test(df, features=["feat1", "feat2"], **COMMON)
+
+    def test_mult_test_missing_data_raises(self, synthetic_data):
+        df = synthetic_data.copy()
+        df.loc[df.index[0], "feat1"] = np.nan
+        with pytest.raises(ValueError, match="Missing data in variables"):
+            mult_test(df, features=["feat1", "feat2"], **COMMON)
+
+    def test_batch_col_with_dot_in_name(self, synthetic_data):
+        df = synthetic_data.rename(columns={"batch": "scanner.site"})
+        common = {**COMMON, "batch_col": "scanner.site"}
+        out = add_test(df, features=["feat1", "feat2"], **common)
+        assert list(out.columns) == ["feature", "chi2", "df", "p_value"]

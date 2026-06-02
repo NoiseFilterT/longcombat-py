@@ -72,6 +72,19 @@ def parse_ranef(ranef: str) -> RanefSpec:
     if not s:
         raise ValueError("ranef string is empty")
 
+    # lme4's '||' means *uncorrelated* random effects. statsmodels.MixedLM
+    # with a vector re_formula always estimates the full (correlated)
+    # covariance, so we cannot express '||' here. Detect it explicitly rather
+    # than misreport it as "multiple blocks".
+    if "||" in s:
+        raise ValueError(
+            f"ranef {ranef!r} uses lme4's '||' (uncorrelated random effects) "
+            "syntax, which statsmodels.MixedLM cannot express in this port: a "
+            "vector random-effects design always estimates the full correlated "
+            "covariance. Use a single correlated block like '(1 + time|subid)', "
+            "or fit uncorrelated random effects in R."
+        )
+
     # Reject multi-block forms early with a clear message.
     if _looks_like_multiple_blocks(s):
         raise ValueError(

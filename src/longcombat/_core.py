@@ -94,7 +94,11 @@ def long_combat(
         Name of the numeric within-subject time/visit column.
     features : sequence of str or sequence of int
         Feature column names, or integer column indices. Each feature is
-        harmonized independently after a per-feature LME fit.
+        harmonized independently after a per-feature LME fit. **Integer
+        indices are 0-based** (Python convention), unlike R ``longCombat``
+        where they are 1-based: the R call ``features = 6:8`` corresponds to
+        ``features=[5, 6, 7]`` here. Passing column names avoids the
+        ambiguity. See ``DIFFERENCES_FROM_R.md`` §9.
     formula : str
         Patsy-style right-hand side describing the fixed effects, e.g.
         ``"age + diagnosis*time"``. Must **not** include ``batch_col`` or
@@ -180,13 +184,16 @@ def long_combat(
     # per-batch moments *across features*. With V=1 that cross-feature
     # variance is undefined (R's `var()` returns NA), producing silently
     # NaN output. Fail loudly instead and point at the workaround.
-    if V < 2 and eb and not mean_only:
+    if V < 2 and (eb or mean_only):
         raise ValueError(
             "Empirical-Bayes longitudinal ComBat requires at least 2 "
             f"features (got {V}). The hyperpriors τ̄², D̄, and S̄² are "
             "estimated from the distribution of per-batch moments across "
-            "features, which is undefined for V<2. Pass eb=False to skip "
-            "empirical-Bayes shrinkage for single-feature harmonization."
+            "features, which is undefined for V<2. Pass eb=False (with "
+            "mean_only=False) to skip empirical-Bayes shrinkage for "
+            "single-feature harmonization; mean_only also requires V≥2 "
+            "because its additive shrinkage uses the same cross-feature "
+            "hyperprior τ̄²."
         )
 
     if verbose:
@@ -337,8 +344,11 @@ def _validate_inputs(
 def _resolve_feature_names(
     data: pd.DataFrame, features: Sequence[str] | Sequence[int]
 ) -> list[str]:
-    if not isinstance(features, (list, tuple)) or len(features) == 0:
-        raise ValueError("features must be a non-empty list of column names or indices")
+    if isinstance(features, (str, bytes)) or not hasattr(features, "__len__"):
+        raise ValueError("features must be a non-empty sequence of column names or indices")
+    features = list(features)
+    if len(features) == 0:
+        raise ValueError("features must be a non-empty sequence of column names or indices")
     first = features[0]
     if isinstance(first, (int, np.integer)) and not isinstance(first, bool):
         names = [str(data.columns[int(i)]) for i in features]
@@ -390,8 +400,11 @@ def _fit_mixedlm(
     batch_col: str,
     ranef_spec,
 ):
-    rhs = f"{formula} + C({batch_col}, Treatment)"
+    # Q()-quote batch_col so column names containing dots or spaces (legal in
+    # R, common in neuroimaging tables) don't break the Patsy formula.
+    rhs = f"{formula} + C(Q('{batch_col}'), Treatment)"
     full_formula = f"Q('{feature}') ~ {rhs}"
+    fit = None
     with warnings.catch_warnings():
         # statsmodels emits warnings (ConvergenceWarning, "random-effects
         # covariance is singular") whenever the random-effects variance
@@ -411,13 +424,37 @@ def _fit_mixedlm(
         for method in (["lbfgs"], ["bfgs"], ["powell"]):
             try:
                 fit = md.fit(reml=True, method=method)
-                return fit
+                break
             except (np.linalg.LinAlgError, ValueError):
                 continue
-    raise RuntimeError(
-        f"All optimizers (lbfgs, bfgs, powell) failed to fit MixedLM for "
-        f"feature {feature!r}."
-    )
+    if fit is None:
+        raise RuntimeError(
+            f"All optimizers (lbfgs, bfgs, powell) failed to fit MixedLM for "
+            f"feature {feature!r}."
+        )
+    _warn_if_unreliable_fit(fit, feature, ranef_spec)
+    return fit
+
+
+def _warn_if_unreliable_fit(fit, feature: str, ranef_spec) -> None:
+    """Warn when a mixed-model fit failed to converge.
+
+    Near the random-effects-variance boundary the REML surface is nearly flat,
+    the optimum is weakly identified, and ``statsmodels`` and ``lme4`` can
+    settle on materially different solutions — so the harmonized values may
+    differ from the R ``longCombat`` result by a few percent. This is the
+    regime ``DIFFERENCES_FROM_R.md`` §1 warns about; surface it instead of
+    using a bad fit silently.
+    """
+    if not getattr(fit, "converged", True):
+        warnings.warn(
+            f"MixedLM fit for feature {feature!r} (ranef "
+            f"{ranef_spec.re_formula!r}) did not converge. Harmonized values "
+            "for this feature may be unreliable and may differ noticeably "
+            "from the R longCombat result. Consider a simpler random-effects "
+            "structure such as a random intercept '(1|id)'.",
+            stacklevel=3,
+        )
 
 
 def _residual_sd(fit, method: str) -> float:
@@ -444,7 +481,7 @@ def _extract_batch_effects(
     fe = fit.fe_params
     coefs = np.empty(len(batch_levels) - 1, dtype=float)
     for j, level in enumerate(batch_levels[1:]):
-        key = f"C({batch_col}, Treatment)[T.{level}]"
+        key = f"C(Q('{batch_col}'), Treatment)[T.{level}]"
         if key not in fe.index:
             raise RuntimeError(
                 f"Could not find batch coefficient {key!r} in model fit. "

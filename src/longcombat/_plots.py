@@ -152,7 +152,7 @@ def batch_boxplot(
 
     ranef_spec = parse_ranef(ranef)
     rhs = (
-        f"{formula} + C({batch_col}, Treatment)" if adjust_batch else formula
+        f"{formula} + C(Q('{batch_col}'), Treatment)" if adjust_batch else formula
     )
     full_formula = f"Q('{feature_name}') ~ {rhs}"
     with warnings.catch_warnings():
@@ -302,15 +302,23 @@ def traj_plot(
 
     for i, sid in enumerate(subject_ids):
         mask = np.asarray(data[id_col] == sid)
-        rows = data.loc[mask].sort_values(time_col)
+        # Positional indices of this subject's rows, reordered by time. The
+        # per-observation marker/color arrays (shapes, pcols) are indexed by
+        # original row position, so we must keep `positions` aligned to the
+        # time-sorted rows — otherwise markers/colors get scrambled when a
+        # subject's input rows are not already in time order.
+        positions = np.where(mask)[0]
+        sub = data.iloc[positions]
+        order = np.argsort(sub[time_col].to_numpy(), kind="stable")
+        positions = positions[order]
+        sub = sub.iloc[order]
         ax.plot(
-            rows[time_col], rows[feature_name],
+            sub[time_col], sub[feature_name],
             color=lcols[i], linestyle=ltypes[i],
         )
         # Points: per-observation marker + color. matplotlib can't vectorize
         # different marker shapes in one scatter call; loop by row.
-        orig_idx = np.where(mask)[0]
-        for k, row in zip(orig_idx, rows.itertuples(index=False), strict=True):
+        for k, row in zip(positions, sub.itertuples(index=False), strict=True):
             ax.plot(
                 getattr(row, time_col), getattr(row, feature_name),
                 marker=str(shapes[k]), color=pcols[k], linestyle="none",
