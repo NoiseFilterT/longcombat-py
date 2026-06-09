@@ -74,3 +74,9 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Skip files (by filename) already present on PyPI, so re-triggering
+          # a release that's already been published is a harmless no-op rather
+          # than a hard "file already exists" failure. cz bump still guards
+          # against accidental version reuse on real new releases.
+          skip-existing: true
