@@ -37,7 +37,7 @@ Homepage = "https://github.com/NoiseFilterT/longcombat-py"
 Repository = "https://github.com/NoiseFilterT/longcombat-py"
 Issues = "https://github.com/NoiseFilterT/longcombat-py/issues"
 "Upstream R package" = "https://github.com/jcbeer/longCombat"
-"Paper (Beer et al. 2020, NeuroImage)" = "https://doi.org/10.1016/j.neuroimage.2020.117129"
+"Paper (Beer et al. 2020)" = "https://doi.org/10.1016/j.neuroimage.2020.117129"
 
 [tool.setuptools.packages.find]
 where = ["src"]

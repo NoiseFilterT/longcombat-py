@@ -86,6 +86,12 @@ existing `tests.yml` convention.
 - **Pending-publisher misconfiguration** (owner/repo/workflow/environment must
   match exactly) is the most common OIDC failure mode → the runbook lists the
   exact values.
+- **`twine check` ≠ Warehouse upload validation.** The first 0.1.1 upload was
+  rejected (400) because a `project.urls` label contained a comma: Warehouse
+  partitions each `Project-URL` on `", "` into `label, url`, so the comma split
+  the URL. `twine check` does not replicate this. Fixed by removing the comma
+  (labels must also be ≤32 chars). The upload failed closed (nothing stored),
+  so 0.1.1 was re-publishable. A TestPyPI dry-run would have caught this.
 
 ## Out of scope (follow-ups)
 
