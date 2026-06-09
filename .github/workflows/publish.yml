@@ -1,0 +1,76 @@
+name: publish
+
+# Publishes to PyPI via Trusted Publishing (OIDC) — no API token required.
+# Triggers when a GitHub Release is published. `workflow_dispatch` is a manual
+# fallback; it requires an explicit tag so a manual run can never accidentally
+# publish whatever happens to be on the default branch.
+#
+# NOTE: on a `release` event GitHub reads this workflow file from the commit the
+# tag points to (release is not one of the default-branch-only events), so this
+# file must exist in the released tag's commit, not just on the default branch.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing git tag to build & publish (e.g. v0.1.1)"
+        required: true
+
+# Least privilege by default; the publish job opts in to id-token below.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build sdist + wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Always build from the tag, never from a branch HEAD. On a release
+          # this is the released tag; on a manual run it's the required input.
+          ref: ${{ github.event.release.tag_name || github.event.inputs.tag }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Build distributions
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+
+      - name: Check metadata
+        run: |
+          python -m pip install --upgrade twine
+          python -m twine check dist/*
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    # The `pypi` environment must match the name registered in the PyPI
+    # Trusted Publisher config. It also gives a place to add required-reviewer
+    # protection on releases later.
+    environment:
+      name: pypi
+      url: https://pypi.org/project/longcombat-py/
+    permissions:
+      id-token: write   # mint the OIDC token PyPI verifies; no password/token
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

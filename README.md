@@ -14,7 +14,8 @@ framework. See:
 > <https://doi.org/10.1016/j.neuroimage.2020.117129>
 
 > **Deviations from the R original** — this port is *not* bit-identical to
-> the R package. Please read [`DIFFERENCES_FROM_R.md`](DIFFERENCES_FROM_R.md)
+> the R package. Please read
+> [`DIFFERENCES_FROM_R.md`](https://github.com/NoiseFilterT/longcombat-py/blob/main/DIFFERENCES_FROM_R.md)
 > before using, especially if comparing results to the R output.
 
 ## Install
@@ -70,4 +71,6 @@ R names.
 
 ## License
 
-Artistic License 2.0. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+Artistic License 2.0. See
+[`LICENSE`](https://github.com/NoiseFilterT/longcombat-py/blob/main/LICENSE) and
+[`NOTICE`](https://github.com/NoiseFilterT/longcombat-py/blob/main/NOTICE).
